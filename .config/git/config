@@ -1,0 +1,29 @@
+[alias]
+    a = add -v
+    b = branch
+    c = commit
+    ca = commit --amend
+    cn = commit --amend --no-edit
+    co = checkout
+    d = diff
+    l = log
+    lg = log --graph --all --oneline
+    lo = log --oneline
+    pl = pull
+    ps = push
+    rb = rebase
+    rs = reset
+    st = status
+    sw = switch
+
+[core]
+    editor = vim
+
+[init]
+    defaultBranch = main
+
+[pull]
+    rebase = true
+
+[rebase]
+    autoStash = true
