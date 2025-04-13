@@ -1,0 +1,15 @@
+[core]
+editor = vim
+
+[init]
+defaultBranch = main
+
+[pull]
+rebase = true
+
+[rebase]
+autoStash = true
+
+[user]
+email = 158758626+kwsmy@users.noreply.github.com
+name = kwsmy
