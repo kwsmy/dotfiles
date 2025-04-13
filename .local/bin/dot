@@ -1,0 +1,377 @@
+#!/usr/bin/env zsh
+
+setopt errexit nounset pipefail
+
+script_file="${0:A}"
+
+typeset -A opts
+zparseopts -A opts -D -E -M -- \
+  a -all=a \
+  h -help=h
+
+dot_message="$(cat <<EOF
+The dotfiles manager
+
+$(tput smul)Usage:$(tput sgr0) dot <COMMAND>
+
+$(tput smul)Commands:$(tput sgr0)
+  add     Add files to dotfiles
+  apply   Create symbolic links for dotfiles
+  list    List files in dotfiles
+  path    Print realpath of dotfiles directory
+  remove  Remove files from dotfiles
+  reset   Undo changes made by 'apply'
+
+$(tput smul)Options:$(tput sgr0)
+  -h, --help  Print help
+EOF
+)"
+
+main() {
+  local cmd
+  cmd="${1:-}"
+
+  if (( $# > 0 )); then
+    shift
+  fi
+
+  case "${cmd}" in
+  add)
+    dot_add "$@"
+    ;;
+  apply)
+    dot_apply "$@"
+    ;;
+  list)
+    dot_list "$@"
+    ;;
+  path)
+    dot_path "$@"
+    ;;
+  remove)
+    dot_remove "$@"
+    ;;
+  reset)
+    dot_reset "$@"
+    ;;
+  *)
+    if [[ -n "${opts[(i)-h]}" ]]; then
+      printf "%s\n" "${dot_message}"
+      exit 0
+    fi
+
+    printf "%s\n" "${dot_message}" >&2
+    exit 1
+    ;;
+  esac
+}
+
+dot_add_message="$(cat <<EOF
+Add files to dotfiles
+
+$(tput smul)Usage:$(tput sgr0) dot add [OPTION] <FILE>...
+
+$(tput smul)Aurgument:$(tput sgr0)
+  <FILE>  The file or directory to add to dotfiles, this must be outside dotfiles
+
+$(tput smul)Options:$(tput sgr0)
+  -h, --help  Print help
+EOF
+)"
+
+dot_add() {
+  if [[ -n "${opts[(i)-h]}" ]]; then
+    printf "%s\n" "${dot_add_message}"
+    exit 0
+  fi
+
+  local dotfiles_dir
+  dotfiles_dir="$(dot_path)"
+
+  _expand_files -o "${dotfiles_dir}" "$@" | while IFS= read -r file; do
+    from="${file:a}"
+
+    if [[ -L "${from}" ]]; then
+      printf "%s\n" "Warning: \"${from}\" must not be symbolic link" >&2
+      continue
+    fi
+
+    to="${from/${HOME}/${dotfiles_dir}}"
+
+    if [[ -e "${to}" ]]; then
+      printf "%s\n" "Warning: \"${to}\" already exists" >&2
+      continue
+    fi
+
+    mkdir -p -- "${to:h}"
+    mv -- "${from}" "${to}"
+    ln -s -- "${to}" "${from}"
+  done
+}
+
+dot_apply_message="$(cat <<EOF
+Create symbolic links for dotfiles
+
+$(tput smul)Usage:$(tput sgr0) dot apply [OPTION] <FILE>...
+
+$(tput smul)Aurgument:$(tput sgr0)
+  <FILE>  The file or directory to create the symbolic link, this must be inside dotfiles
+
+$(tput smul)Options:$(tput sgr0)
+  -a, --all   Apply all files in dotfiles
+  -h, --help  Print help
+EOF
+)"
+
+dot_apply() {
+  if [[ -n "${opts[(i)-h]}" ]]; then
+    printf "%s\n" "${dot_apply_message}"
+    exit 0
+  fi
+
+  local dotfiles_dir
+  dotfiles_dir="$(dot_path)"
+
+  if [[ -n "${opts[(i)-a]}" ]]; then
+    set -- "${dotfiles_dir}"
+  fi
+
+  _expand_files -i "${dotfiles_dir}" "$@" | while IFS= read -r file; do
+    to="${file:a}"
+
+    if [[ "${to}" == "${dotfiles_dir}"/README.md ]]; then
+      continue
+    fi
+
+    from="${to/${dotfiles_dir}/${HOME}}"
+
+    if [[ -L "${from}" ]]; then
+      printf "%s\n" "Info: \"${from}\" already exists"
+      continue
+    fi
+
+    if [[ -e "${from}" ]]; then
+      printf "%s\n" "Info: A backup of \"${from}\" is created"
+      mv -- "${from}" "${from}".bak
+    fi
+
+    mkdir -p -- "${from:h}"
+    ln -s -- "${to}" "${from}"
+  done
+}
+
+dot_list_message="$(cat <<EOF
+List files in dotfiles
+
+$(tput smul)Usage:$(tput sgr0) dot list [OPTION]
+
+$(tput smul)Options:$(tput sgr0)
+  -a, --all   Print non-linked files also
+  -h, --help  Print help
+EOF
+)"
+
+dot_list() {
+  if [[ -n "${opts[(i)-h]}" ]]; then
+    printf "%s\n" "${dot_list_message}"
+    exit 0
+  fi
+
+  local dotfiles_dir
+  dotfiles_dir="$(dot_path)"
+
+  local -a output
+
+  _expand_files "${dotfiles_dir}" | while IFS= read -r file; do
+    to="${file:a}"
+
+    if [[ "${to}" == "${dotfiles_dir}"/README.md ]]; then
+      continue
+    fi
+
+    from="${to/${dotfiles_dir}/${HOME}}"
+
+    if [[ -e "${from}" && "${from:A}" == "${to}" ]]; then
+      from_fmt="$(tput setaf 6)${from/${HOME}/~}$(tput sgr0)"
+      to_fmt="${to/${HOME}/~}"
+
+      output+=("${from_fmt} -> ${to_fmt}")
+    elif [[ -e "${from}" ]]; then
+      from_fmt="$(tput setaf 6)${from/${HOME}/~}$(tput sgr0)"
+      to_fmt="$(tput setaf 1)${${from:A}/${HOME}/~}$(tput sgr0)"
+
+      output+=("${from_fmt} -> ${to_fmt}")
+    elif [[ -n "${opts[(i)-a]}" ]]; then
+      to_fmt="${to/${HOME}/~}"
+
+      output+=(" -> ${to_fmt}")
+    fi
+  done
+
+  printf "%s\n" "${(@o)output}" | less -FRX
+}
+
+dot_path_message="$(cat <<EOF
+Print realpath of dotfiles directory
+
+$(tput smul)Usage:$(tput sgr0) dot path [OPTION]
+
+$(tput smul)Options:$(tput sgr0)
+  -h, --help  Print help
+EOF
+)"
+
+dot_path() {
+  if [[ -n "${opts[(i)-h]}" ]]; then
+    printf "%s\n" "${dot_path_message}"
+    exit 0
+  fi
+
+  local script_dir
+  script_dir="${script_file:h}"
+
+  local dotfiles_dir
+  dotfiles_dir="$(git -C "${script_dir}" rev-parse --show-toplevel)"
+
+  printf "%s\n" "${dotfiles_dir}"
+}
+
+dot_remove_message="$(cat <<EOF
+Remove files from dotfiles
+
+$(tput smul)Usage:$(tput sgr0) dot remove [OPTION] <FILE>...
+
+$(tput smul)Aurgument:$(tput sgr0)
+  <FILE>  The file or directory to remove from dotfiles, this must be outside dotfiles
+
+$(tput smul)Options:$(tput sgr0)
+  -h, --help  Print help
+EOF
+)"
+
+dot_remove() {
+  if [[ -n "${opts[(i)-h]}" ]]; then
+    printf "%s\n" "${dot_remove_message}"
+    exit 0
+  fi
+
+  local dotfiles_dir
+  dotfiles_dir="$(dot_path)"
+
+  _expand_files -o "${dotfiles_dir}" "$@" | while IFS= read -r file; do
+    from="${file:a}"
+
+    if [[ ! -L "${from}" ]]; then
+      printf "%s\n" "Warning: \"${from}\" must be symbolic link" >&2
+      continue
+    fi
+
+    to="${from/${HOME}/${dotfiles_dir}}"
+
+    if [[ "${from:A}" != "${to}" ]]; then
+      printf "%s\n" "Warning: \"${from}\" is not managed in dotfiles" >&2
+      continue
+    fi
+
+    unlink -- "${from}"
+    mv -- "${to}" "${from}"
+    rmdir -p -- "${to:h}" 2>/dev/null || :
+  done
+}
+
+dot_reset_message="$(cat <<EOF
+Undo changes made by 'apply'
+
+$(tput smul)Usage:$(tput sgr0) dot reset [OPTION] <FILE>...
+
+$(tput smul)Aurgument:$(tput sgr0)
+  <FILE>  The file or directory to cancel the symbolic link, this must be inside dotfiles
+
+$(tput smul)Options:$(tput sgr0)
+  -a, --all   Reset all files in dotfiles
+  -h, --help  Print help
+EOF
+)"
+
+dot_reset() {
+  if [[ -n "${opts[(i)-h]}" ]]; then
+    printf "%s\n" "${dot_reset_message}"
+    exit 0
+  fi
+
+  local dotfiles_dir
+  dotfiles_dir="$(dot_path)"
+
+  if [[ -n "${opts[(i)-a]}" ]]; then
+    set -- "${dotfiles_dir}"
+  fi
+
+  _expand_files -i "${dotfiles_dir}" "$@" | while IFS= read -r file; do
+    to="${file:a}"
+
+    if [[ "${to}" == "${dotfiles_dir}"/README.md ]]; then
+      continue
+    fi
+
+    from="${to/${dotfiles_dir}/${HOME}}"
+
+    if [[ ! -e "${from}" ]]; then
+      printf "%s\n" "Info: \"${from}\" not found"
+      continue
+    fi
+
+    if [[ -L "${from}" && "${from:A}" != "${to}" ]]; then
+      printf "%s\n" "Info: \"${file}\" is not managed dotfiles"
+    fi
+
+    unlink -- "${from}"
+    rmdir -p -- "${from:h}" 2>/dev/null || :
+
+    if [[ -e "${from}".bak ]]; then
+      printf "%s\n" "Info: A backup of \"${from}\" is restored"
+      mv -- "${from}".bak "${from}"
+    fi
+  done
+}
+
+_expand_files() {
+  local -A opts
+  zparseopts -A opts -D -E -M -- \
+    i: -inside_dir:=i \
+    o: -outside_dir:=o
+
+  for file in "$@"; do
+    if [[ ! -e "${file}" && ! -L "${file}" ]]; then
+      printf "%s\n" "Error: \"${file}\" not found" >&2
+      exit 1
+    fi
+
+    if [[ "${file:A}" != "${HOME}"/* ]]; then
+      printf "%s\n" "Error: \"${file}\" must be unber home directory" >&2
+      exit 1
+    fi
+
+    if [[ -n "${opts[(i)-i]}" && "${file:a}" != "${opts[-i]}"* ]]; then
+      printf "%s\n" "Error: \"${file}\" must be inside \"${opts[-i]}\"" >&2
+      exit 1
+    fi
+
+    if [[ -n "${opts[(i)-o]}" && "${file:a}" == "${opts[-o]}"* ]]; then
+      printf "%s\n" "Error: \"${file}\" must be outside \"${opts[-o]}\"" >&2
+      exit 1
+    fi
+  done
+
+  for file in "$@"; do
+    if [[ -f "${file}" || -L "${file}" ]]; then
+      printf "%s\n" "${file}"
+      continue
+    fi
+
+    if [[ -d "${file}" ]]; then
+      find "${file}" -path '*/.git' -prune -o \( -type f -o -type l \) -print
+    fi
+  done
+}
+
+main "$@"
