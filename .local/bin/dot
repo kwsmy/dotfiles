@@ -139,7 +139,7 @@ dot_apply() {
   _expand_files -i "${dotfiles_dir}" "$@" | while IFS= read -r file; do
     to="${file:a}"
 
-    if [[ "${to}" == "${dotfiles_dir}"/README.md ]]; then
+    if [[ "${to}" == "${dotfiles_dir}/README.md" ]]; then
       continue
     fi
 
@@ -152,7 +152,7 @@ dot_apply() {
 
     if [[ -e "${from}" ]]; then
       printf "%s\n" "Info: A backup of \"${from}\" is created"
-      mv -- "${from}" "${from}".bak
+      mv -- "${from}" "${from}.bak"
     fi
 
     mkdir -p -- "${from:h}"
@@ -185,7 +185,7 @@ dot_list() {
   _expand_files "${dotfiles_dir}" | while IFS= read -r file; do
     to="${file:a}"
 
-    if [[ "${to}" == "${dotfiles_dir}"/README.md ]]; then
+    if [[ "${to}" == "${dotfiles_dir}/README.md" ]]; then
       continue
     fi
 
@@ -309,7 +309,7 @@ dot_reset() {
   _expand_files -i "${dotfiles_dir}" "$@" | while IFS= read -r file; do
     to="${file:a}"
 
-    if [[ "${to}" == "${dotfiles_dir}"/README.md ]]; then
+    if [[ "${to}" == "${dotfiles_dir}/README.md" ]]; then
       continue
     fi
 
@@ -327,9 +327,9 @@ dot_reset() {
     unlink -- "${from}"
     rmdir -p -- "${from:h}" 2>/dev/null || :
 
-    if [[ -e "${from}".bak ]]; then
+    if [[ -e "${from}.bak" ]]; then
       printf "%s\n" "Info: A backup of \"${from}\" is restored"
-      mv -- "${from}".bak "${from}"
+      mv -- "${from}.bak" "${from}"
     fi
   done
 }
