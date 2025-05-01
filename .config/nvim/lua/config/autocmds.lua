@@ -8,9 +8,12 @@
 -- e.g. vim.api.nvim_del_augroup_by_name("lazyvim_wrap_spell")
 vim.api.nvim_create_autocmd("TermEnter", {
   callback = function(ev)
-    vim.keymap.set("t", "<c-h>", "<c-h>", { buffer = ev.buf, nowait = true })
-    vim.keymap.set("t", "<c-j>", "<c-j>", { buffer = ev.buf, nowait = true })
-    vim.keymap.set("t", "<c-k>", "<c-k>", { buffer = ev.buf, nowait = true })
-    vim.keymap.set("t", "<c-l>", "<c-l>", { buffer = ev.buf, nowait = true })
+    local map = vim.keymap.set
+    local opts = { buffer = ev.buf, nowait = true }
+
+    map("t", "<c-h>", "<c-h>", opts)
+    map("t", "<c-j>", "<c-j>", opts)
+    map("t", "<c-k>", "<c-k>", opts)
+    map("t", "<c-l>", "<c-l>", opts)
   end,
 })
