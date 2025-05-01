@@ -14,12 +14,17 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+local localpath = vim.uv.cwd() .. "/.nvim"
+local stat = vim.uv.fs_stat(localpath .. "/lua/local/plugins")
+
 require("lazy").setup({
   spec = {
     -- add LazyVim and import its plugins
     { "LazyVim/LazyVim", import = "lazyvim.plugins" },
     -- import/override with your plugins
     { import = "plugins" },
+    -- import/override with your local plugins
+    { import = (stat and stat.type == "directory") and "local.plugins" or nil },
   },
   defaults = {
     -- By default, only LazyVim plugins will be lazy-loaded. Your custom plugins will load during startup.
@@ -37,6 +42,10 @@ require("lazy").setup({
   }, -- automatically check for plugin updates
   performance = {
     rtp = {
+      -- add any custom paths here that you want to includes in the rtp
+      paths = {
+        localpath,
+      },
       -- disable some rtp plugins
       disabled_plugins = {
         "gzip",
